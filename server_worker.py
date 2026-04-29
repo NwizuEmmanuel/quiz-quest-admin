@@ -4,14 +4,37 @@ import sqlite3
 import threading
 from flask import Flask, request, jsonify
 from datetime import datetime
+import sys
 
 app = Flask(__name__)
 
-# Get the absolute path to the directory this script is in
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Improved path logic to find the DB next to the EXE or the script
+if getattr(sys, 'frozen', False):
+    # If running as a packaged EXE, look in the folder where the EXE is
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # If running as a script, look in the current folder
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DB_PATH = os.path.join(BASE_DIR, "quiz_system.db")
 
+def init_db_if_missing():
+    conn = sqlite3.connect(DB_PATH)
+    # This creates the table if it doesn't exist so the server won't crash
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            firstname TEXT,
+            lastname TEXT,
+            section TEXT,
+            username TEXT UNIQUE,
+            password TEXT
+        )
+    """)
+    conn.close()
+
 def get_db():
+    init_db_if_missing() # Run the check
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
