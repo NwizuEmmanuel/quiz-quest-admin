@@ -18,14 +18,36 @@ class ResultsTab(QWidget):
         # --- SEARCH & FILTERS ---
         top_controls = QVBoxLayout()
         
+        # Student Name Search
         search_layout = QHBoxLayout()
         self.name_search = QLineEdit()
         self.name_search.setPlaceholderText("🔍 Search student by name...")
-        self.name_search.textChanged.connect(self.filter_table_by_name)
-        search_layout.addWidget(QLabel("<b>Search:</b>"))
+        # Connect to the unified filter function
+        self.name_search.textChanged.connect(self.apply_all_filters)
+        search_layout.addWidget(QLabel("<b>Student Name:</b>"))
         search_layout.addWidget(self.name_search)
         top_controls.addLayout(search_layout)
 
+        # Quiz Title and Code Search
+        quiz_filter_layout = QHBoxLayout()
+        
+        # Quiz Title - Changed to self.quiz_title to access it in filtering
+        self.quiz_title = QLineEdit()
+        self.quiz_title.setPlaceholderText("Search by quiz title...")
+        self.quiz_title.textChanged.connect(self.apply_all_filters)
+        
+        # Quiz Code - Changed to self.quiz_code to access it in filtering
+        self.quiz_code = QLineEdit()
+        self.quiz_code.setPlaceholderText("Search by quiz code...")
+        self.quiz_code.textChanged.connect(self.apply_all_filters)
+
+        quiz_filter_layout.addWidget(QLabel("<b>Quiz Title:</b>"))
+        quiz_filter_layout.addWidget(self.quiz_title)
+        quiz_filter_layout.addWidget(QLabel("<b>Quiz Code:</b>"))
+        quiz_filter_layout.addWidget(self.quiz_code)
+        top_controls.addLayout(quiz_filter_layout)
+
+        # Date Filters
         filter_layout = QHBoxLayout()
         now = QDateTime.currentDateTime()
         self.start_filter = QDateTimeEdit(now.addDays(-7))
@@ -50,15 +72,16 @@ class ResultsTab(QWidget):
         filter_layout.addWidget(btn_refresh)
         filter_layout.addWidget(btn_export)
         top_controls.addLayout(filter_layout)
+        
         layout.addLayout(top_controls)
 
-        # --- TABLE (Now 8 Columns) ---
+        # --- TABLE ---
         self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels([
             "First Name", "Last Name", "Section", "Quiz Title", "Quiz Code", "Defeated Boss", "Score", "Total", "Percentage (%)", "Details"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnHidden(7, True) # Hidden JSON details
+        self.table.setColumnHidden(9, True) # Details JSON is column 9
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.itemDoubleClicked.connect(self.show_scrollable_details)
         
@@ -67,11 +90,33 @@ class ResultsTab(QWidget):
         
         self.load_results()
 
+    # --- NEW UNIFIED FILTER LOGIC ---
+    def apply_all_filters(self):
+        """Checks Name, Title, and Code fields to show/hide rows."""
+        name_query = self.name_search.text().lower()
+        title_query = self.quiz_title.text().lower()
+        code_query = self.quiz_code.text().lower()
+
+        for i in range(self.table.rowCount()):
+            # Get values from specific columns
+            fname = self.table.item(i, 0).text().lower()
+            lname = self.table.item(i, 1).text().lower()
+            q_title = self.table.item(i, 3).text().lower()
+            q_code = self.table.item(i, 4).text().lower()
+
+            # Check if row matches all active criteria
+            match_name = (name_query in fname or name_query in lname)
+            match_title = (title_query in q_title)
+            match_code = (code_query in q_code)
+
+            # Show row only if it matches all three (AND logic)
+            # If you want OR logic, change 'and' to 'or'
+            self.table.setRowHidden(i, not (match_name and match_title and match_code))
+
     def load_results(self):
         start = self.start_filter.dateTime().toString("yyyy-MM-dd HH:mm:ss")
         end = self.end_filter.dateTime().toString("yyyy-MM-dd HH:mm:ss")
         
-        # Added r.defeated_boss to the SELECT query
         query = """
             SELECT s.firstname, s.lastname, s.section, r.quiz_title, r.quiz_code, r.defeated_boss, r.score, r.total, r.quiz_details 
             FROM results r
@@ -95,14 +140,19 @@ class ResultsTab(QWidget):
             self.table.setItem(row_idx, 2, QTableWidgetItem(str(row["section"])))
             self.table.setItem(row_idx, 3, QTableWidgetItem(str(row["quiz_title"])))
             self.table.setItem(row_idx, 4, QTableWidgetItem(str(row["quiz_code"])))
-            # NEW BOSS COLUMN
-            boss_name = str(row["defeated_boss"]) if row["defeated_boss"] else "None"
-            self.table.setItem(row_idx, 5, QTableWidgetItem(boss_name))
+            
+            boss_status = str(row["defeated_boss"]) if row["defeated_boss"] else "No"
+            self.table.setItem(row_idx, 5, QTableWidgetItem(boss_status))
             
             self.table.setItem(row_idx, 6, QTableWidgetItem(str(score)))
             self.table.setItem(row_idx, 7, QTableWidgetItem(str(total)))
             self.table.setItem(row_idx, 8, QTableWidgetItem(f"{perc:.2f}%"))
             self.table.setItem(row_idx, 9, QTableWidgetItem(row["quiz_details"]))
+        
+        # Re-apply text filters after reloading from DB
+        self.apply_all_filters()
+
+    # ... (rest of methods like export_csv and show_scrollable_details remain the same)
 
     def filter_table_by_name(self):
         search_text = self.name_search.text().lower()
@@ -116,7 +166,7 @@ class ResultsTab(QWidget):
         row = item.row()
         fname = self.table.item(row, 0).text()
         lname = self.table.item(row, 1).text()
-        json_str = self.table.item(row, 7).text()
+        json_str = self.table.item(row, 9).text()
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Breakdown: {fname} {lname}")
@@ -155,7 +205,7 @@ class ResultsTab(QWidget):
                 for r in range(self.table.rowCount()):
                     if not self.table.isRowHidden(r):
                         # Export columns 0 through 6 (skipping the hidden JSON column)
-                        row_data = [self.table.item(r, c).text() for c in range(7)]
+                        row_data = [self.table.item(r, c).text() for c in range(9)]
                         writer.writerow(row_data)
             QMessageBox.information(self, "Success", "Exported successfully.")
         except Exception as e:
