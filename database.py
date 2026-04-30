@@ -49,7 +49,7 @@ class Database:
                         quiz_title TEXT,
                         quiz_name TEXT,
                         quiz_data TEXT,
-                        quiz_code TEXT UNIQUE,
+                        quiz_code TEXT,
                         start_time TEXT,
                         end_time TEXT)""")
 
@@ -59,10 +59,13 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 student_id INTEGER,
                 quiz_title TEXT,
+                quiz_code TEXT,
                 score INTEGER,
                 total INTEGER,
                 defeated_boss TEXT, 
-                quiz_details TEXT, 
+                quiz_details TEXT,
+                start_time TEXT,
+                end_time TEXT, 
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)""")
 
         # Ensure at least one user exists

@@ -45,18 +45,22 @@ def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
+    quiz_code = data.get("quiz_code")
     
     db = get_db()
+    code = db.execute("SELECT id, start_time, end_time from schedules WHERE quiz_code=?",(quiz_code,)).fetchone()
     user = db.execute("SELECT id, firstname, lastname, section FROM students WHERE username=? AND password=?", 
                       (username, password)).fetchone()
     db.close()
 
-    if user:
+    if user and code:
         return jsonify({
             "status": "success",
             "student_id": user['id'],
             "name": f"{user['firstname']} {user['lastname']}",
-            "section": user['section']
+            "section": user['section'],
+            "start_time": code["start_time"],
+            "end_time": code["end_time"]
         }), 200
     return jsonify({"status": "error", "message": "Invalid credentials"}), 401
 
@@ -80,11 +84,11 @@ def get_schedules():
 @app.route('/api/get_full_quiz', methods=['POST'])
 def get_full_quiz():
     data = request.json
-    schedule_id = data.get('schedule_id')
+    quiz_code = data.get('quiz_code')
     
     db = get_db()
-    query = "SELECT quiz_title, quiz_data FROM schedules WHERE id=?"
-    quiz = db.execute(query, (schedule_id,)).fetchone()
+    query = "SELECT quiz_title, quiz_data FROM schedules WHERE quiz_code=?"
+    quiz = db.execute(query, (quiz_code,)).fetchone()
     db.close()
     
     if quiz:
@@ -103,11 +107,14 @@ def submit_results():
     
     student_id = data.get('student_id')
     quiz_title = data.get('quiz_title')
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+    q_code = data.get("quiz_code")
     
     try:
         # 1. Check if a record already exists for this student and this quiz
-        check_query = "SELECT id FROM results WHERE student_id = ? AND quiz_title = ?"
-        existing_record = db.execute(check_query, (student_id, quiz_title)).fetchone()
+        check_query = "SELECT id FROM results WHERE student_id = ? AND quiz_title = ? AND start_time=? AND end_time=? AND quiz_code=?"
+        existing_record = db.execute(check_query, (student_id, quiz_title, start_time, end_time, q_code)).fetchone()
         
         if existing_record:
             db.close()
@@ -121,16 +128,20 @@ def submit_results():
         details_json = json.dumps(data.get('quiz_details', []))
         boss = data.get('defeated_boss', 'None')
         
-        insert_query = """INSERT INTO results (student_id, quiz_title, score, total, defeated_boss, quiz_details) 
-                          VALUES (?, ?, ?, ?, ?, ?)"""
+        insert_query = """INSERT INTO results (student_id, quiz_title, quiz_code, score, total, defeated_boss, quiz_details, 
+        start_time, end_time) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"""
         
         db.execute(insert_query, (
             student_id, 
-            quiz_title, 
+            quiz_title,
+            q_code, 
             data['score'], 
             data['total'], 
             boss,
-            details_json
+            details_json,
+            start_time,
+            end_time
         ))
         
         db.commit()

@@ -110,14 +110,7 @@ class ScheduleTab(QWidget):
             return
 
         if not quiz_code:
-            QMessageBox.warning(self, "Error", "Quiz can't be empty.")
-            return
-        
-        query = "SELECT id from schedules where quiz_code=?"
-        cursor = self.db.query(query, (quiz_code,))
-        result = cursor.fetchone()
-
-        if not result:
+            QMessageBox.warning(self, "Error", "Quiz code can't be empty.")
             return
         
         if self.selected_sched_id:

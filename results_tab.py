@@ -53,9 +53,9 @@ class ResultsTab(QWidget):
         layout.addLayout(top_controls)
 
         # --- TABLE (Now 8 Columns) ---
-        self.table = QTableWidget(0, 8)
+        self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels([
-            "First Name", "Last Name", "Quiz Title", "Defeated Boss", "Score", "Total", "Percentage (%)", "Details"
+            "First Name", "Last Name", "Section", "Quiz Title", "Quiz Code", "Defeated Boss", "Score", "Total", "Percentage (%)", "Details"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setColumnHidden(7, True) # Hidden JSON details
@@ -73,7 +73,7 @@ class ResultsTab(QWidget):
         
         # Added r.defeated_boss to the SELECT query
         query = """
-            SELECT s.firstname, s.lastname, r.quiz_title, r.defeated_boss, r.score, r.total, r.quiz_details 
+            SELECT s.firstname, s.lastname, s.section, r.quiz_title, r.quiz_code, r.defeated_boss, r.score, r.total, r.quiz_details 
             FROM results r
             JOIN students s ON r.student_id = s.id
             WHERE r.timestamp BETWEEN ? AND ?
@@ -92,15 +92,17 @@ class ResultsTab(QWidget):
             
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(row["firstname"])))
             self.table.setItem(row_idx, 1, QTableWidgetItem(str(row["lastname"])))
-            self.table.setItem(row_idx, 2, QTableWidgetItem(str(row["quiz_title"])))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(str(row["section"])))
+            self.table.setItem(row_idx, 3, QTableWidgetItem(str(row["quiz_title"])))
+            self.table.setItem(row_idx, 4, QTableWidgetItem(str(row["quiz_code"])))
             # NEW BOSS COLUMN
             boss_name = str(row["defeated_boss"]) if row["defeated_boss"] else "None"
-            self.table.setItem(row_idx, 3, QTableWidgetItem(boss_name))
+            self.table.setItem(row_idx, 5, QTableWidgetItem(boss_name))
             
-            self.table.setItem(row_idx, 4, QTableWidgetItem(str(score)))
-            self.table.setItem(row_idx, 5, QTableWidgetItem(str(total)))
-            self.table.setItem(row_idx, 6, QTableWidgetItem(f"{perc:.2f}%"))
-            self.table.setItem(row_idx, 7, QTableWidgetItem(row["quiz_details"]))
+            self.table.setItem(row_idx, 6, QTableWidgetItem(str(score)))
+            self.table.setItem(row_idx, 7, QTableWidgetItem(str(total)))
+            self.table.setItem(row_idx, 8, QTableWidgetItem(f"{perc:.2f}%"))
+            self.table.setItem(row_idx, 9, QTableWidgetItem(row["quiz_details"]))
 
     def filter_table_by_name(self):
         search_text = self.name_search.text().lower()
@@ -149,7 +151,7 @@ class ResultsTab(QWidget):
             with open(path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 # Added Defeated Boss to CSV header
-                writer.writerow(["First Name", "Last Name", "Quiz Title", "Defeated Boss", "Score", "Total", "Percentage"])
+                writer.writerow(["First Name", "Last Name","Section", "Quiz Title", "Quiz Code", "Defeated Boss", "Score", "Total", "Percentage"])
                 for r in range(self.table.rowCount()):
                     if not self.table.isRowHidden(r):
                         # Export columns 0 through 6 (skipping the hidden JSON column)
