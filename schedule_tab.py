@@ -36,6 +36,12 @@ class ScheduleTab(QWidget):
         self.main_layout.addWidget(QLabel("Display Title:"))
         self.main_layout.addWidget(self.title_input)
 
+        # add quiz code input
+        self.code_input = QLineEdit()
+        self.code_input.setPlaceholderText("eg. prelim-cs-2")
+        self.main_layout.addWidget(QLabel("Quiz Code"))
+        self.main_layout.addWidget(self.code_input)
+
         # --- DATE TIME PICKERS ---
         dt_container = QHBoxLayout()
         
@@ -70,8 +76,8 @@ class ScheduleTab(QWidget):
 
         # --- STEP 4: TABLE ---
         self.main_layout.addWidget(QLabel("<b>ACTIVE SCHEDULES</b>"))
-        self.table = QTableWidget(0, 5) # Increased to 5 to show all columns
-        self.table.setHorizontalHeaderLabels(["ID", "Title", "Quiz File", "Start Time", "End Time"])
+        self.table = QTableWidget(0, 6) # Increased to 6 to show all columns
+        self.table.setHorizontalHeaderLabels(["ID", "Title", "Quiz File", "Quiz Code", "Start Time", "End Time"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.itemClicked.connect(self.load_schedule_data)
         self.main_layout.addWidget(self.table)
@@ -97,20 +103,32 @@ class ScheduleTab(QWidget):
         title = self.title_input.text().strip()
         start = self.start_dt.dateTime().toString("yyyy-MM-dd HH:mm:ss")
         end = self.end_dt.dateTime().toString("yyyy-MM-dd HH:mm:ss")
+        quiz_code = self.code_input.text().strip().upper()
 
         if not title or not self.embedded_json_content:
             QMessageBox.warning(self, "Error", "Title and Quiz File are required.")
             return
 
+        if not quiz_code:
+            QMessageBox.warning(self, "Error", "Quiz can't be empty.")
+            return
+        
+        query = "SELECT id from schedules where quiz_code=?"
+        cursor = self.db.query(query, (quiz_code,))
+        result = cursor.fetchone()
+
+        if not result:
+            return
+        
         if self.selected_sched_id:
             sql = """UPDATE schedules SET quiz_title=?, quiz_name=?, quiz_data=?, 
-                    start_time=?, end_time=? WHERE id=?"""
+                    quiz_code=?, start_time=?, end_time=? WHERE id=?"""
             self.db.execute(sql, (title, self.file_display.text(), self.embedded_json_content, 
-                                start, end, self.selected_sched_id))
+                                quiz_code, start, end, self.selected_sched_id))
         else:
-            sql = """INSERT INTO schedules (quiz_title, quiz_name, quiz_data, start_time, end_time) 
-                    VALUES (?,?,?,?,?)"""
-            self.db.execute(sql, (title, self.file_display.text(), self.embedded_json_content, start, end))
+            sql = """INSERT INTO schedules (quiz_title, quiz_name, quiz_data, quiz_code, start_time, end_time) 
+                    VALUES (?,?,?,?,?,?)"""
+            self.db.execute(sql, (title, self.file_display.text(), self.embedded_json_content, quiz_code, start, end))
 
         self.refresh_table()
         self.clear_form()
@@ -124,6 +142,7 @@ class ScheduleTab(QWidget):
         if res:
             data = res[0]
             self.title_input.setText(data["quiz_title"])
+            self.code_input.setText(data["quiz_code"])
             self.file_display.setText(data["quiz_name"])
             self.embedded_json_content = data["quiz_data"]
             
@@ -146,6 +165,7 @@ class ScheduleTab(QWidget):
         self.selected_sched_id = None
         self.embedded_json_content = ""
         self.title_input.clear()
+        self.code_input.clear()
         self.file_display.clear()
         self.start_dt.setDateTime(QDateTime.currentDateTime())
         self.end_dt.setDateTime(QDateTime.currentDateTime().addDays(1))
@@ -154,11 +174,12 @@ class ScheduleTab(QWidget):
 
     def refresh_table(self):
         self.table.setRowCount(0)
-        res = self.db.query("SELECT id, quiz_title, quiz_name, start_time, end_time FROM schedules")
+        res = self.db.query("SELECT id, quiz_title, quiz_name, quiz_code, start_time, end_time FROM schedules")
         for r_idx, row in enumerate(res): 
             self.table.insertRow(r_idx)
             self.table.setItem(r_idx, 0, QTableWidgetItem(str(row["id"])))
             self.table.setItem(r_idx, 1, QTableWidgetItem(str(row["quiz_title"])))
             self.table.setItem(r_idx, 2, QTableWidgetItem(str(row["quiz_name"])))
-            self.table.setItem(r_idx, 3, QTableWidgetItem(str(row["start_time"])))
-            self.table.setItem(r_idx, 4, QTableWidgetItem(str(row["end_time"])))
+            self.table.setItem(r_idx, 3, QTableWidgetItem(str(row["quiz_code"])))
+            self.table.setItem(r_idx, 4, QTableWidgetItem(str(row["start_time"])))
+            self.table.setItem(r_idx, 5, QTableWidgetItem(str(row["end_time"])))

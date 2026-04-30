@@ -49,6 +49,7 @@ class Database:
                         quiz_title TEXT,
                         quiz_name TEXT,
                         quiz_data TEXT,
+                        quiz_code TEXT UNIQUE,
                         start_time TEXT,
                         end_time TEXT)""")
 
